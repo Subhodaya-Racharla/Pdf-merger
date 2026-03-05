@@ -1,0 +1,68 @@
+
+body{
+margin:0;
+font-family:Arial;
+background:#f4f4f4;
+transition:0.3s;
+}
+
+.dark{
+background:#121212;
+color:white;
+}
+
+.topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:15px 25px;
+background:#007bff;
+color:white;
+}
+
+.hero{
+text-align:center;
+padding:40px 20px;
+}
+
+.hero input{
+padding:12px;
+width:260px;
+max-width:80%;
+border-radius:8px;
+border:1px solid #ccc;
+}
+
+.tools-grid{
+display:grid;
+grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+gap:20px;
+padding:30px;
+}
+
+.tool-card{
+background:white;
+padding:30px;
+border-radius:12px;
+text-decoration:none;
+color:black;
+font-weight:bold;
+text-align:center;
+box-shadow:0 4px 10px rgba(0,0,0,0.1);
+transition:0.2s;
+}
+
+.dark .tool-card{
+background:#1f1f1f;
+color:white;
+}
+
+.tool-card:hover{
+transform:translateY(-5px);
+}
+
+@media(max-width:600px){
+.hero h2{
+font-size:22px;
+}
+}
