@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Watermark PDF — PDFtools</title>
+<link rel="stylesheet" href="shared.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+</head>
+<body>
+<div class="page">
+  <nav>
+    <a class="wordmark" href="index.html">PDF<em>tools</em></a>
+    <div class="nav-right"><a class="nav-back" href="index.html">← All tools</a></div>
+  </nav>
+  <div class="hero">
+    <h1>Watermark PDF.<br><em>Your stamp.</em></h1>
+    <p>Add a custom text watermark to every page of your PDF.</p>
+  </div>
+  <div class="drop-zone" id="dz">
+    <div class="dz-icon"><svg viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v3a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3v-3"/></svg></div>
+    <h2>Drop a PDF here</h2><p>or click to browse</p>
+    <button class="btn-choose" onclick="document.getElementById('fi').click()">Choose file</button>
+  </div>
+  <input type="file" id="fi" accept=".pdf,application/pdf"/>
+  <div class="files-section" id="fs">
+    <div class="row-head"><span id="flbl">—</span><button class="btn-clr" onclick="clearAll()">Clear</button></div>
+    <div class="file-list" id="fl"></div>
+    <div class="options-panel">
+      <h3>Watermark options</h3>
+      <div class="opt-row"><span class="opt-label">Text</span><input class="opt-input" id="wtext" value="CONFIDENTIAL" style="flex:1"/></div>
+      <div class="opt-row"><span class="opt-label">Font size</span><input class="opt-input" id="fsize" type="number" value="60" min="10" max="200" style="width:80px"/></div>
+      <div class="opt-row"><span class="opt-label">Opacity</span>
+        <select class="opt-input" id="opacity">
+          <option value="0.1">Very light (10%)</option>
+          <option value="0.2" selected>Light (20%)</option>
+          <option value="0.35">Medium (35%)</option>
+          <option value="0.5">Dark (50%)</option>
+        </select>
+      </div>
+      <div class="opt-row"><span class="opt-label">Position</span>
+        <select class="opt-input" id="pos">
+          <option value="center" selected>Center (diagonal)</option>
+          <option value="top">Top</option>
+          <option value="bottom">Bottom</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions"><div class="sp"></div><button class="btn-action" id="mb" onclick="doWatermark()">Add Watermark <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+    <div class="prog-wrap" id="pw"><div class="prog-row"><span id="pl">Processing…</span><strong id="pp">0%</strong></div><div class="prog-track"><div class="prog-fill" id="pf"></div></div></div>
+    <div class="success-wrap" id="sw"><div class="success-row"><div class="chk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="success-body"><h3>Watermark added</h3><p id="sm"></p><div class="sbtn-row"><a id="dl" class="btn-dl" download="watermarked.pdf">Download PDF</a><button class="btn-outline" onclick="clearAll()">Start over</button></div></div></div></div>
+  </div>
+  <footer><p>Powered by <strong>pdf-lib</strong> — processed in your browser. Made by <strong>Subhodaya Racharla</strong></p><p>© 2025 PDFtools</p></footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+let file=null;
+const dz=document.getElementById('dz'),fi=document.getElementById('fi'),fs=document.getElementById('fs'),fl=document.getElementById('fl'),flbl=document.getElementById('flbl'),mb=document.getElementById('mb'),pw=document.getElementById('pw'),pf=document.getElementById('pf'),pl=document.getElementById('pl'),pp=document.getElementById('pp'),sw=document.getElementById('sw'),toast=document.getElementById('toast');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)addFile(f);});
+dz.addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')fi.click();});
+fi.addEventListener('change',()=>{if(fi.files[0])addFile(fi.files[0]);fi.value='';});
+function addFile(f){if(!f.name.toLowerCase().endsWith('.pdf')&&f.type!=='application/pdf'){notify('Please select a PDF',true);return;}file=f;flbl.textContent=f.name;fl.innerHTML=`<div class="file-card"><div class="pdf-thumb">PDF</div><div class="file-info"><div class="fname">${esc(f.name)}</div><div class="fsize">${fmt(f.size)}</div></div><button class="btn-rm" onclick="clearAll()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;dz.classList.add('hidden');fs.classList.add('show');}
+function clearAll(){file=null;fl.innerHTML='';fs.classList.remove('show');dz.classList.remove('hidden');sw.classList.remove('show');pw.classList.remove('show');mb.disabled=false;}
+async function doWatermark(){if(!file)return;const text=document.getElementById('wtext').value.trim();if(!text){notify('Enter watermark text',true);return;}mb.disabled=true;sw.classList.remove('show');pw.classList.add('show');setP(0,'Loading…');
+try{const{PDFDocument,rgb,degrees,StandardFonts}=PDFLib;const buf=await file.arrayBuffer();const pdf=await PDFDocument.load(buf,{ignoreEncryption:true});const font=await pdf.embedFont(StandardFonts.HelveticaBold);const pages=pdf.getPages();const fontSize=parseInt(document.getElementById('fsize').value)||60;const opacity=parseFloat(document.getElementById('opacity').value);const pos=document.getElementById('pos').value;
+pages.forEach((page,i)=>{setP(Math.round((i/pages.length)*90),`Processing page ${i+1}…`);const{width,height}=page.getSize();const tw=font.widthOfTextAtSize(text,fontSize);let x,y,rot=0;if(pos==='center'){x=(width-tw*Math.cos(Math.PI/4))/2;y=height/2;rot=45;}else if(pos==='top'){x=(width-tw)/2;y=height-80;rot=0;}else{x=(width-tw)/2;y=40;rot=0;}page.drawText(text,{x,y,size:fontSize,font,color:rgb(0.5,0.5,0.5),opacity,rotate:degrees(rot)});});
+setP(95,'Saving…');const bytes=await pdf.save();setP(100,'Done');const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));document.getElementById('dl').href=url;document.getElementById('sm').textContent=`"${text}" added to ${pages.length} page${pages.length!==1?'s':''}`;setTimeout(()=>{pw.classList.remove('show');sw.classList.add('show');mb.disabled=false;},450);}catch(e){console.error(e);pw.classList.remove('show');mb.disabled=false;notify('Failed',true);}}
+function setP(p,l){pf.style.width=p+'%';pl.textContent=l;pp.textContent=p+'%';}
+function fmt(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';return (b/1048576).toFixed(1)+' MB';}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let tt;function notify(msg,err=false){clearTimeout(tt);toast.textContent=msg;toast.className='toast show'+(err?' err':'');tt=setTimeout(()=>toast.classList.remove('show'),3200);}
+</script>
+</body></html>

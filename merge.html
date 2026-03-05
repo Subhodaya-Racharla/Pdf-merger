@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Merge PDF — PDFtools</title>
+<link rel="stylesheet" href="shared.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+</head>
+<body>
+<div class="page">
+  <nav>
+    <a class="wordmark" href="index.html">PDF<em>tools</em></a>
+    <div class="nav-right"><a class="nav-back" href="index.html">← All tools</a></div>
+  </nav>
+  <div class="hero">
+    <h1>Merge PDF.<br><em>Combine files.</em></h1>
+    <p>Combine multiple PDF files into one. Drag to reorder. Everything runs in your browser.</p>
+  </div>
+  <div class="drop-zone" id="dz">
+    <div class="dz-icon"><svg viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v3a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3v-3"/></svg></div>
+    <h2>Drop your PDFs here</h2><p>or click to browse</p>
+    <button class="btn-choose" onclick="document.getElementById('fi').click()">Choose files</button>
+  </div>
+  <input type="file" id="fi" multiple accept=".pdf,application/pdf"/>
+  <div class="files-section" id="fs">
+    <div class="row-head"><span id="flbl">0 files</span><button class="btn-clr" onclick="clearAll()">Clear all</button></div>
+    <div class="file-list" id="fl"></div>
+    <div class="add-row"><div class="add-line"></div><button class="btn-add-more" onclick="document.getElementById('fi').click()">+ Add more files</button><div class="add-line"></div></div>
+    <div class="actions"><div class="sp"></div><button class="btn-action" id="mb" onclick="doMerge()">Merge PDF <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+    <div class="prog-wrap" id="pw"><div class="prog-row"><span id="pl">Processing…</span><strong id="pp">0%</strong></div><div class="prog-track"><div class="prog-fill" id="pf"></div></div></div>
+    <div class="success-wrap" id="sw"><div class="success-row"><div class="chk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="success-body"><h3>Your PDF is ready</h3><p id="sm"></p><div class="sbtn-row"><a id="dl" class="btn-dl" download="merged.pdf">Download PDF</a><button class="btn-outline" onclick="clearAll()">Start over</button></div></div></div></div>
+  </div>
+  <footer><p>Powered by <strong>pdf-lib</strong> — processed in your browser. Made by <strong>Subhodaya Racharla</strong></p><p>© 2025 PDFtools</p></footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+let files=[],dragSrc=null;
+const dz=document.getElementById('dz'),fi=document.getElementById('fi'),fs=document.getElementById('fs'),fl=document.getElementById('fl'),flbl=document.getElementById('flbl'),mb=document.getElementById('mb'),pw=document.getElementById('pw'),pf=document.getElementById('pf'),pl=document.getElementById('pl'),pp=document.getElementById('pp'),sw=document.getElementById('sw'),toast=document.getElementById('toast');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');addFiles([...e.dataTransfer.files]);});
+dz.addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')fi.click();});
+fi.addEventListener('change',()=>{addFiles([...fi.files]);fi.value='';});
+function addFiles(raw){const pdfs=raw.filter(f=>f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf'));if(raw.length!==pdfs.length)notify(`${raw.length-pdfs.length} non-PDF skipped`,true);if(!pdfs.length)return;files.push(...pdfs);render();dz.classList.add('hidden');fs.classList.add('show');}
+function render(){flbl.textContent=`${files.length} file${files.length!==1?'s':''}`;fl.innerHTML='';files.forEach((f,i)=>{const c=document.createElement('div');c.className='file-card';c.draggable=true;c.dataset.i=i;c.innerHTML=`<div class="handle"><span></span><span></span><span></span></div><div class="pdf-thumb">PDF</div><div class="file-info"><div class="fname">${esc(f.name)}</div><div class="fsize">${fmt(f.size)}</div></div><div class="fnum">${i+1}</div><button class="btn-rm" onclick="rm(${i})"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;c.addEventListener('dragstart',()=>{dragSrc=i;c.classList.add('dragging');});c.addEventListener('dragover',e=>{e.preventDefault();document.querySelectorAll('.file-card').forEach(x=>x.classList.remove('over'));c.classList.add('over');});c.addEventListener('drop',e=>{e.preventDefault();if(dragSrc!==null&&dragSrc!==i){const m=files.splice(dragSrc,1)[0];files.splice(i,0,m);render();}});c.addEventListener('dragend',()=>{document.querySelectorAll('.file-card').forEach(x=>x.classList.remove('dragging','over'));dragSrc=null;});fl.appendChild(c);});}
+function rm(i){files.splice(i,1);if(!files.length){clearAll();return;}render();}
+function clearAll(){files=[];fl.innerHTML='';fs.classList.remove('show');dz.classList.remove('hidden');sw.classList.remove('show');pw.classList.remove('show');mb.disabled=false;}
+async function doMerge(){if(files.length<2){notify('Add at least 2 PDFs',true);return;}mb.disabled=true;sw.classList.remove('show');pw.classList.add('show');setP(0,'Reading…');
+try{const{PDFDocument}=PDFLib;const out=await PDFDocument.create();for(let i=0;i<files.length;i++){setP(Math.round((i/files.length)*85),`Merging ${i+1} of ${files.length}…`);const buf=await files[i].arrayBuffer();const src=await PDFDocument.load(buf,{ignoreEncryption:true});const pgs=await out.copyPages(src,src.getPageIndices());pgs.forEach(p=>out.addPage(p));}setP(95,'Saving…');const bytes=await out.save();setP(100,'Done');const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));document.getElementById('dl').href=url;document.getElementById('sm').textContent=`${out.getPageCount()} pages · ${(bytes.byteLength/1048576).toFixed(2)} MB · ${files.length} files merged`;setTimeout(()=>{pw.classList.remove('show');sw.classList.add('show');mb.disabled=false;},450);}catch(e){console.error(e);pw.classList.remove('show');mb.disabled=false;notify('Merge failed — file may be corrupted or password-protected.',true);}}
+function setP(p,l){pf.style.width=p+'%';pl.textContent=l;pp.textContent=p+'%';}
+function fmt(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';return (b/1048576).toFixed(1)+' MB';}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let tt;function notify(msg,err=false){clearTimeout(tt);toast.textContent=msg;toast.className='toast show'+(err?' err':'');tt=setTimeout(()=>toast.classList.remove('show'),3200);}
+</script>
+</body></html>

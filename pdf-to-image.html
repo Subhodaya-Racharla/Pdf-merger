@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PDF to Images — PDFtools</title>
+<link rel="stylesheet" href="shared.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+.preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:16px;}
+.preview-item{background:var(--white);border:1px solid var(--border);border-radius:8px;overflow:hidden;text-align:center;}
+.preview-item canvas{width:100%;display:block;}
+.preview-item span{display:block;font-size:11px;color:var(--muted);padding:6px 0;}
+</style>
+</head>
+<body>
+<div class="page">
+  <nav>
+    <a class="wordmark" href="index.html">PDF<em>tools</em></a>
+    <div class="nav-right"><a class="nav-back" href="index.html">← All tools</a></div>
+  </nav>
+  <div class="hero">
+    <h1>PDF to Images.<br><em>Every page.</em></h1>
+    <p>Convert each page of your PDF into a PNG image. Download all at once.</p>
+  </div>
+  <div class="drop-zone" id="dz">
+    <div class="dz-icon"><svg viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v3a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3v-3"/></svg></div>
+    <h2>Drop a PDF here</h2><p>or click to browse</p>
+    <button class="btn-choose" onclick="document.getElementById('fi').click()">Choose file</button>
+  </div>
+  <input type="file" id="fi" accept=".pdf,application/pdf"/>
+  <div class="files-section" id="fs">
+    <div class="row-head"><span id="flbl">—</span><button class="btn-clr" onclick="clearAll()">Clear</button></div>
+    <div class="file-list" id="fl"></div>
+    <div class="options-panel">
+      <h3>Options</h3>
+      <div class="opt-row"><span class="opt-label">Scale / quality</span>
+        <select class="opt-input" id="scale">
+          <option value="1">Normal (1x)</option>
+          <option value="1.5" selected>High (1.5x)</option>
+          <option value="2">Very high (2x)</option>
+        </select>
+      </div>
+    </div>
+    <div class="actions"><div class="sp"></div><button class="btn-action" id="mb" onclick="doConvert()">Convert to Images <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+    <div class="prog-wrap" id="pw"><div class="prog-row"><span id="pl">Processing…</span><strong id="pp">0%</strong></div><div class="prog-track"><div class="prog-fill" id="pf"></div></div></div>
+    <div class="success-wrap" id="sw"><div class="success-row"><div class="chk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="success-body"><h3>Conversion complete</h3><p id="sm"></p><div class="sbtn-row" id="dlbtns"></div></div></div>
+    <div class="preview-grid" id="pg"></div></div>
+  </div>
+  <footer><p>Powered by <strong>PDF.js</strong> — processed in your browser. Made by <strong>Subhodaya Racharla</strong></p><p>© 2025 PDFtools</p></footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let file=null;
+const dz=document.getElementById('dz'),fi=document.getElementById('fi'),fs=document.getElementById('fs'),fl=document.getElementById('fl'),flbl=document.getElementById('flbl'),mb=document.getElementById('mb'),pw=document.getElementById('pw'),pf=document.getElementById('pf'),pl=document.getElementById('pl'),pp=document.getElementById('pp'),sw=document.getElementById('sw'),toast=document.getElementById('toast');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)addFile(f);});
+dz.addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')fi.click();});
+fi.addEventListener('change',()=>{if(fi.files[0])addFile(fi.files[0]);fi.value='';});
+function addFile(f){if(!f.name.toLowerCase().endsWith('.pdf')&&f.type!=='application/pdf'){notify('Please select a PDF',true);return;}file=f;flbl.textContent=f.name;fl.innerHTML=`<div class="file-card"><div class="pdf-thumb">PDF</div><div class="file-info"><div class="fname">${esc(f.name)}</div><div class="fsize">${fmt(f.size)}</div></div><button class="btn-rm" onclick="clearAll()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;dz.classList.add('hidden');fs.classList.add('show');}
+function clearAll(){file=null;fl.innerHTML='';fs.classList.remove('show');dz.classList.remove('hidden');sw.classList.remove('show');pw.classList.remove('show');mb.disabled=false;document.getElementById('pg').innerHTML='';}
+async function doConvert(){if(!file){notify('No file selected',true);return;}mb.disabled=true;sw.classList.remove('show');pw.classList.add('show');setP(0,'Loading PDF…');
+try{const scale=parseFloat(document.getElementById('scale').value);const ab=await file.arrayBuffer();const pdf=await pdfjsLib.getDocument({data:ab}).promise;const total=pdf.numPages;const urls=[];const pg=document.getElementById('pg');pg.innerHTML='';
+for(let i=1;i<=total;i++){setP(Math.round((i/total)*95),`Rendering page ${i} of ${total}…`);const page=await pdf.getPage(i);const vp=page.getViewport({scale});const canvas=document.createElement('canvas');canvas.width=vp.width;canvas.height=vp.height;const ctx=canvas.getContext('2d');await page.render({canvasContext:ctx,viewport:vp}).promise;const url=canvas.toDataURL('image/png');urls.push({url,name:`page-${i}.png`});const item=document.createElement('div');item.className='preview-item';const c2=document.createElement('canvas');c2.width=vp.width;c2.height=vp.height;const ctx2=c2.getContext('2d');ctx2.drawImage(canvas,0,0);item.appendChild(c2);item.innerHTML+=`<span>Page ${i}</span>`;pg.appendChild(item);}
+setP(100,'Done');document.getElementById('sm').textContent=`${total} image${total!==1?'s':''} created`;const dlbtns=document.getElementById('dlbtns');dlbtns.innerHTML='';
+urls.forEach(({url,name})=>{const a=document.createElement('a');a.className='btn-dl';a.href=url;a.download=name;a.style.fontSize='12px';a.style.padding='7px 14px';a.textContent=name;dlbtns.appendChild(a);});
+const reset=document.createElement('button');reset.className='btn-outline';reset.textContent='Start over';reset.onclick=clearAll;dlbtns.appendChild(reset);
+setTimeout(()=>{pw.classList.remove('show');sw.classList.add('show');mb.disabled=false;},450);}catch(e){console.error(e);pw.classList.remove('show');mb.disabled=false;notify('Conversion failed',true);}}
+function setP(p,l){pf.style.width=p+'%';pl.textContent=l;pp.textContent=p+'%';}
+function fmt(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';return (b/1048576).toFixed(1)+' MB';}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let tt;function notify(msg,err=false){clearTimeout(tt);toast.textContent=msg;toast.className='toast show'+(err?' err':'');tt=setTimeout(()=>toast.classList.remove('show'),3200);}
+</script>
+</body></html>

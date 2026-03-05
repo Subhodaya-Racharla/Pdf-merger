@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Protect PDF — PDFtools</title>
+<link rel="stylesheet" href="shared.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+.pwd-input{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 12px;font-family:'Geist',sans-serif;font-size:13px;color:var(--text);outline:none;transition:border-color 0.15s;flex:1;}
+.pwd-input:focus{border-color:var(--border-h);}
+.info-box{background:var(--subtle);border:1px solid var(--border);border-radius:8px;padding:14px 16px;font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:12px;}
+</style>
+</head>
+<body>
+<div class="page">
+  <nav>
+    <a class="wordmark" href="index.html">PDF<em>tools</em></a>
+    <div class="nav-right"><a class="nav-back" href="index.html">← All tools</a></div>
+  </nav>
+  <div class="hero">
+    <h1>Protect PDF.<br><em>Add a password.</em></h1>
+    <p>Password-protect your PDF so only people with the password can open it.</p>
+  </div>
+  <div class="drop-zone" id="dz">
+    <div class="dz-icon"><svg viewBox="0 0 24 24"><path d="M12 15V3m0 0L8 7m4-4 4 4"/><path d="M3 15v3a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3v-3"/></svg></div>
+    <h2>Drop a PDF here</h2><p>or click to browse</p>
+    <button class="btn-choose" onclick="document.getElementById('fi').click()">Choose file</button>
+  </div>
+  <input type="file" id="fi" accept=".pdf,application/pdf"/>
+  <div class="files-section" id="fs">
+    <div class="row-head"><span id="flbl">—</span><button class="btn-clr" onclick="clearAll()">Clear</button></div>
+    <div class="file-list" id="fl"></div>
+    <div class="options-panel">
+      <h3>Password</h3>
+      <div class="opt-row"><span class="opt-label">Password</span><input class="pwd-input" id="pwd" type="password" placeholder="Enter password"/></div>
+      <div class="opt-row"><span class="opt-label">Confirm</span><input class="pwd-input" id="pwd2" type="password" placeholder="Confirm password"/></div>
+    </div>
+    <div class="info-box">⚠️ Note: Browser-based PDF encryption provides basic protection. For high-security needs, use dedicated desktop software like Adobe Acrobat.</div>
+    <div class="actions" style="margin-top:16px"><div class="sp"></div><button class="btn-action" id="mb" onclick="doProtect()">Protect PDF <svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+    <div class="prog-wrap" id="pw"><div class="prog-row"><span id="pl">Processing…</span><strong id="pp">0%</strong></div><div class="prog-track"><div class="prog-fill" id="pf"></div></div></div>
+    <div class="success-wrap" id="sw"><div class="success-row"><div class="chk"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div class="success-body"><h3>PDF protected</h3><p id="sm"></p><div class="sbtn-row"><a id="dl" class="btn-dl" download="protected.pdf">Download PDF</a><button class="btn-outline" onclick="clearAll()">Start over</button></div></div></div></div>
+  </div>
+  <footer><p>Powered by <strong>pdf-lib</strong> — processed in your browser. Made by <strong>Subhodaya Racharla</strong></p><p>© 2025 PDFtools</p></footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+let file=null;
+const dz=document.getElementById('dz'),fi=document.getElementById('fi'),fs=document.getElementById('fs'),fl=document.getElementById('fl'),flbl=document.getElementById('flbl'),mb=document.getElementById('mb'),pw=document.getElementById('pw'),pf=document.getElementById('pf'),pl=document.getElementById('pl'),pp=document.getElementById('pp'),sw=document.getElementById('sw'),toast=document.getElementById('toast');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)addFile(f);});
+dz.addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')fi.click();});
+fi.addEventListener('change',()=>{if(fi.files[0])addFile(fi.files[0]);fi.value='';});
+function addFile(f){if(!f.name.toLowerCase().endsWith('.pdf')&&f.type!=='application/pdf'){notify('Please select a PDF',true);return;}file=f;flbl.textContent=f.name;fl.innerHTML=`<div class="file-card"><div class="pdf-thumb">PDF</div><div class="file-info"><div class="fname">${esc(f.name)}</div><div class="fsize">${fmt(f.size)}</div></div><button class="btn-rm" onclick="clearAll()"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>`;dz.classList.add('hidden');fs.classList.add('show');}
+function clearAll(){file=null;fl.innerHTML='';fs.classList.remove('show');dz.classList.remove('hidden');sw.classList.remove('show');pw.classList.remove('show');mb.disabled=false;document.getElementById('pwd').value='';document.getElementById('pwd2').value='';}
+async function doProtect(){if(!file)return;const pwd=document.getElementById('pwd').value;const pwd2=document.getElementById('pwd2').value;if(!pwd){notify('Enter a password',true);return;}if(pwd!==pwd2){notify('Passwords do not match',true);return;}mb.disabled=true;sw.classList.remove('show');pw.classList.add('show');setP(0,'Loading…');
+try{const{PDFDocument}=PDFLib;const buf=await file.arrayBuffer();setP(40,'Encrypting…');const pdf=await PDFDocument.load(buf,{ignoreEncryption:true});setP(70,'Saving…');const bytes=await pdf.save({userPassword:pwd,ownerPassword:pwd+'_owner',permissions:{printing:'highResolution',modifying:false,copying:false,annotating:false}});setP(100,'Done');const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));document.getElementById('dl').href=url;document.getElementById('sm').textContent=`Password protection applied · ${(bytes.byteLength/1048576).toFixed(2)} MB`;setTimeout(()=>{pw.classList.remove('show');sw.classList.add('show');mb.disabled=false;},450);}catch(e){console.error(e);pw.classList.remove('show');mb.disabled=false;notify('Failed — try a different PDF',true);}}
+function setP(p,l){pf.style.width=p+'%';pl.textContent=l;pp.textContent=p+'%';}
+function fmt(b){if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';return (b/1048576).toFixed(1)+' MB';}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+let tt;function notify(msg,err=false){clearTimeout(tt);toast.textContent=msg;toast.className='toast show'+(err?' err':'');tt=setTimeout(()=>toast.classList.remove('show'),3200);}
+</script>
+</body></html>
